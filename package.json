@@ -1,0 +1,14 @@
+{
+  "name": "instagram-feed-planner",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Instagram Feed Planner — qreative_",
+  "scripts": {
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "build": "cd client && npm run build",
+    "start": "cd server && node index.js",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "postinstall": "npm run install:all && npm run build"
+  }
+}
