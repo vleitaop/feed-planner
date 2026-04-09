@@ -1,43 +1,35 @@
 const express = require('express');
 const router = express.Router();
 const Post = require('../models/Post');
-// Importá acá tu configuración de multer/cloudinary (ajustá la ruta si es distinta)
-// Por ejemplo: const upload = require('../middleware/cloudinaryConfig'); 
-// O si lo tenés definido en otro lado, asegurate de tener el objeto 'upload'
+const upload = require('../middleware/cloudinary.config'); // Asegurate de que esta sea tu ruta a la config de multer
 
-// ESTA ES LA RUTA QUE CREA EL POST (Tu "createPost")
 router.post('/', upload.fields([
-  { name: 'media', maxCount: 10 }, // Permite hasta 10 fotos para el carrusel
-  { name: 'cover', maxCount: 1 }   // La portada del Reel
+  { name: 'media', maxCount: 10 },
+  { name: 'cover', maxCount: 1 }
 ]), async (req, res) => {
   try {
     const { type, position, caption } = req.body;
 
-    // 1. Extraemos las URLs de las fotos/videos que subió Multer a Cloudinary
-    // req.files['media'] es un array. Sacamos el 'path' de cada uno.
-    const files = req.files['media'] || [];
-    const mediaUrls = files.map(file => file.path || file.url);
+    // Multer + Cloudinary suben los archivos y te dan el 'path' (la URL)
+    const mediaFiles = req.files['media'] || [];
+    const urls = mediaFiles.map(file => file.path); // URLs de Cloudinary
 
-    // 2. Extraemos la portada si es un Reel
-    const coverUrl = req.files['cover'] ? (req.files['cover'][0].path || req.files['cover'][0].url) : null;
+    const coverFile = req.files['cover'] ? req.files['cover'][0].path : null;
 
-    // 3. Creamos el post en MongoDB
     const newPost = new Post({
       type,
-      position: parseInt(position),
+      position: Number(position),
       caption,
-      mediaUrls: mediaUrls, // Guardamos el array de URLs
-      coverUrl: coverUrl
+      mediaUrls: urls, // Guardamos el array de links
+      coverUrl: coverFile
     });
 
     const savedPost = await newPost.save();
     res.status(201).json(savedPost);
   } catch (error) {
-    console.error('Error al crear post:', error);
-    res.status(500).json({ message: 'Error al guardar en la base de datos', error });
+    console.error(error);
+    res.status(500).json({ message: 'Error al crear el post' });
   }
 });
-
-// ... (Acá abajo seguro tenés el router.get o router.delete, dejalos como están)
 
 module.exports = router;
