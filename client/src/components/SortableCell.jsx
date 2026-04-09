@@ -6,13 +6,11 @@ import MediaOverlay from './MediaOverlay.jsx';
 export default function SortableCell({ position, post, onClick, isPreview, isEditorMode }) {
   const cellId = `pos-${position}`;
 
-  // Every cell is a drop target (editor only)
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: cellId,
     disabled: isPreview,
   });
 
-  // Only filled cells in editor mode are draggable
   const {
     setNodeRef: setDragRef,
     attributes,
@@ -24,7 +22,6 @@ export default function SortableCell({ position, post, onClick, isPreview, isEdi
     disabled: !post || isPreview,
   });
 
-  // Combine drag + drop refs into the same DOM node
   const setRef = useCallback(
     (node) => {
       setDropRef(node);
@@ -39,13 +36,18 @@ export default function SortableCell({ position, post, onClick, isPreview, isEdi
     position: isDragging ? 'relative' : undefined,
   };
 
-  // Determine thumb image
-  const thumbSrc = post
-    ? post.type === 'reel' && post.coverUrl
-      ? post.coverUrl
-      : post.mediaUrl
-    : null;
+  // CORRECCIÓN: Lógica para detectar la miniatura en el array o el campo viejo
+  const getThumb = () => {
+    if (!post) return null;
+    if (post.type === 'reel' && post.coverUrl) return post.coverUrl;
+    
+    // Si existe mediaUrls (array) y tiene algo, usamos el primero. Si no, fallback al viejo mediaUrl.
+    return (post.mediaUrls && post.mediaUrls.length > 0) 
+      ? post.mediaUrls[0] 
+      : post.mediaUrl;
+  };
 
+  const thumbSrc = getThumb();
   const dragProps = post && !isPreview ? { ...attributes, ...listeners } : {};
 
   return (
@@ -56,23 +58,14 @@ export default function SortableCell({ position, post, onClick, isPreview, isEdi
       onClick={onClick}
       data-dragging={isDragging ? 'true' : undefined}
       className={[
-        'aspect-square relative overflow-hidden select-none',
-        'transition-all duration-150',
+        'aspect-square relative overflow-hidden select-none transition-all duration-150',
         isPreview ? 'cursor-pointer' : 'cursor-pointer',
-        // Drop-over highlight (editor only)
-        isOver && !isPreview && !isDragging
-          ? 'ring-2 ring-inset ring-black'
-          : '',
-        // Dragging ghost
+        isOver && !isPreview && !isDragging ? 'ring-2 ring-inset ring-black' : '',
         isDragging ? 'opacity-50 scale-95' : '',
-        // Empty cell background
         !post && !isPreview ? 'bg-white hover:bg-gray-50' : 'bg-gray-100',
-      ]
-        .filter(Boolean)
-        .join(' ')}
+      ].filter(Boolean).join(' ')}
     >
       {post ? (
-        /* ── Filled cell ── */
         <>
           <img
             src={thumbSrc}
@@ -80,30 +73,19 @@ export default function SortableCell({ position, post, onClick, isPreview, isEdi
             className="w-full h-full object-cover"
             draggable={false}
             onError={(e) => {
-              e.target.style.display = 'none';
+              // Si la imagen falla, mostramos un fondo gris para que no quede el texto alt
+              e.target.style.opacity = '0';
             }}
           />
           <MediaOverlay type={post.type} />
-
-          {/* Editor hover overlay */}
           {!isPreview && (
             <div className="absolute inset-0 bg-black/0 hover:bg-black/15 transition-colors duration-200" />
           )}
         </>
       ) : (
-        /* ── Empty cell ── */
         !isPreview && (
           <div className="w-full h-full flex items-center justify-center group">
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#c7c7c7"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              className="transition-all group-hover:stroke-black group-hover:scale-110"
-            >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#c7c7c7" strokeWidth="1.5" strokeLinecap="round" className="transition-all group-hover:stroke-black group-hover:scale-110">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
