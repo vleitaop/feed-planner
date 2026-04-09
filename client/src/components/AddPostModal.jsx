@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createPost } from '../lib/api.js';
 import { useToast } from '../context/ToastContext.jsx';
 
@@ -10,8 +10,8 @@ const TYPES = [
 
 export default function AddPostModal({ position, onClose, onSave }) {
   const [type, setType] = useState('image');
-  const [mediaFiles, setMediaFiles] = useState([]); // Array de archivos
-  const [mediaPreviews, setMediaPreviews] = useState([]); // Array de previas
+  const [mediaFiles, setMediaFiles] = useState([]); 
+  const [mediaPreviews, setMediaPreviews] = useState([]); 
   const [coverFile, setCoverFile] = useState(null);
   const [coverPreview, setCoverPreview] = useState(null);
   const [caption, setCaption] = useState('');
@@ -22,11 +22,18 @@ export default function AddPostModal({ position, onClose, onSave }) {
   const mediaInputRef = useRef(null);
   const coverInputRef = useRef(null);
 
+  // Limpiar memoria de las URLs creadas al desmontar el componente
+  useEffect(() => {
+    return () => {
+      mediaPreviews.forEach(url => URL.revokeObjectURL(url));
+      if (coverPreview) URL.revokeObjectURL(coverPreview);
+    };
+  }, [mediaPreviews, coverPreview]);
+
   function handleMediaChange(e) {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    // Si es carrusel permitimos varios, si no, solo el primero
     const selectedFiles = type === 'carousel' ? files : [files[0]];
     setMediaFiles(selectedFiles);
 
@@ -43,14 +50,22 @@ export default function AddPostModal({ position, onClose, onSave }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (mediaFiles.length === 0) return setError('Seleccioná archivos.');
+    setError('');
+
+    if (mediaFiles.length === 0) {
+      setError('Seleccioná al menos un archivo.');
+      return;
+    }
+    if (type === 'reel' && !coverFile) {
+      setError('Se requiere una imagen de portada para Reels.');
+      return;
+    }
 
     const formData = new FormData();
     formData.append('type', type);
     formData.append('position', position);
     formData.append('caption', caption);
 
-    // Mandamos los archivos físicos. Multer los va a recibir uno por uno.
     mediaFiles.forEach((file) => {
       formData.append('media', file);
     });
@@ -62,74 +77,169 @@ export default function AddPostModal({ position, onClose, onSave }) {
     setLoading(true);
     try {
       await createPost(formData);
-      showToast('¡Post creado!', 'success');
+      showToast('¡Post creado con éxito!', 'success');
       onSave();
     } catch (err) {
-      setError('Error al guardar el post.');
+      const msg = err.response?.data?.message || 'Error al guardar el post.';
+      setError(msg);
+      showToast(msg, 'error');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl p-5 overflow-y-auto max-h-[90vh]">
-        <h2 className="text-sm font-semibold mb-4">Agregar Post (Slot {position + 1})</h2>
-        
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Selector de Tipo */}
-          <div className="grid grid-cols-3 gap-2">
-            {TYPES.map((t) => (
+    <Backdrop onClose={onClose}>
+      <div
+        className="bg-white w-full max-w-sm mx-auto rounded-xl shadow-2xl animate-scale-in max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-gray-100">
+          <div>
+            <h2 className="text-sm font-semibold tracking-tight">Agregar Post</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Slot {position + 1} de 12</p>
+          </div>
+          <CloseButton onClick={onClose} />
+        </div>
+
+        <form onSubmit={handleSubmit} className="px-5 py-5 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-2">Tipo de post</label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {TYPES.map((t) => (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => {
+                    setType(t.value);
+                    setMediaFiles([]);
+                    setMediaPreviews([]);
+                  }}
+                  className={[
+                    'flex flex-col items-center gap-1 py-2.5 px-2 rounded-lg border text-xs font-medium transition-all',
+                    type === t.value
+                      ? 'border-black bg-black text-white'
+                      : 'border-gray-200 text-gray-600 hover:border-gray-400',
+                  ].join(' ')}
+                >
+                  <span className="text-base">{t.emoji}</span>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">
+              {type === 'reel' ? 'Video' : type === 'carousel' ? 'Imágenes (Múltiples)' : 'Imagen'}
+            </label>
+            <input
+              ref={mediaInputRef}
+              type="file"
+              accept={type === 'reel' ? 'video/*' : 'image/*'}
+              multiple={type === 'carousel'}
+              onChange={handleMediaChange}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => mediaInputRef.current?.click()}
+              className="w-full border-2 border-dashed border-gray-200 rounded-lg py-3 px-4 text-xs text-gray-500 hover:border-gray-400 hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              {mediaFiles.length > 0 ? `${mediaFiles.length} seleccionado(s)` : `Seleccionar ${type === 'reel' ? 'video' : 'archivo'}...`}
+            </button>
+          </div>
+
+          {type === 'reel' && (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Portada (imagen)</label>
+              <input
+                ref={coverInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleCoverChange}
+                className="hidden"
+              />
               <button
-                key={t.value}
                 type="button"
-                onClick={() => { setType(t.value); setMediaFiles([]); setMediaPreviews([]); }}
-                className={`p-2 rounded-lg border text-xs ${type === t.value ? 'bg-black text-white' : 'bg-white'}`}
+                onClick={() => coverInputRef.current?.click()}
+                className="w-full border-2 border-dashed border-gray-200 rounded-lg py-3 px-4 text-xs text-gray-500 hover:border-gray-400 hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
               >
-                {t.emoji} {t.label}
+                {coverFile ? coverFile.name : 'Seleccionar portada...'}
               </button>
-            ))}
+            </div>
+          )}
+
+          {mediaPreviews.length > 0 && (
+            <div className={`grid gap-2 ${type === 'carousel' ? 'grid-cols-3' : 'grid-cols-1'}`}>
+              {mediaPreviews.map((src, i) => (
+                <div key={i} className="rounded-lg overflow-hidden border border-gray-100 aspect-square">
+                  {type === 'reel' ? (
+                    <video src={src} className="w-full h-full object-cover" muted />
+                  ) : (
+                    <img src={src} alt="preview" className="w-full h-full object-cover" />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div>
+            <label htmlFor="add-caption" className="block text-xs font-medium text-gray-500 mb-1.5">Pie de foto</label>
+            <textarea
+              id="add-caption"
+              rows={2}
+              placeholder="Escribí un pie de foto..."
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-black resize-none"
+            />
           </div>
 
-          {/* Input de Archivos */}
-          <input
-            ref={mediaInputRef}
-            type="file"
-            accept={type === 'reel' ? 'video/*' : 'image/*'}
-            multiple={type === 'carousel'} // Clave para el carrusel
-            onChange={handleMediaChange}
-            className="hidden"
-          />
-          <button
-            type="button"
-            onClick={() => mediaInputRef.current?.click()}
-            className="w-full border-2 border-dashed p-4 rounded-lg text-xs text-gray-500"
-          >
-            {mediaFiles.length > 0 ? `${mediaFiles.length} archivos seleccionados` : 'Seleccionar archivos'}
-          </button>
+          {error && <p className="text-xs text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{error}</p>}
 
-          {/* Previews */}
-          <div className="grid grid-cols-3 gap-2">
-            {mediaPreviews.map((src, i) => (
-              <img key={i} src={src} className="aspect-square object-cover rounded-md border" alt="preview" />
-            ))}
-          </div>
-
-          <textarea
-            placeholder="Pie de foto..."
-            value={caption}
-            onChange={(e) => setCaption(e.target.value)}
-            className="w-full border rounded-lg p-2 text-sm"
-          />
-
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="flex-1 border p-2 rounded-lg text-sm">Cancelar</button>
-            <button type="submit" disabled={loading} className="flex-1 bg-black text-white p-2 rounded-lg text-sm">
+          <div className="flex gap-2 pt-1">
+            <button type="button" onClick={onClose} className="flex-1 border border-gray-200 text-sm font-medium py-2 rounded-lg hover:bg-gray-50 transition-colors">
+              Cancelar
+            </button>
+            <button type="submit" disabled={loading} className="flex-1 bg-black text-white text-sm font-medium py-2 rounded-lg hover:bg-gray-900 transition-colors disabled:opacity-50">
               {loading ? 'Subiendo...' : 'Agregar'}
             </button>
           </div>
         </form>
       </div>
+    </Backdrop>
+  );
+}
+
+// ESTAS SON LAS FUNCIONES QUE NECESITA EL OTRO ARCHIVO
+export function Backdrop({ children, onClose }) {
+  return (
+    <div
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in"
+      onClick={onClose}
+    >
+      {children}
     </div>
+  );
+}
+
+export function CloseButton({ onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+        <line x1="18" y1="6" x2="6" y2="18" />
+        <line x1="6" y1="6" x2="18" y2="18" />
+      </svg>
+    </button>
   );
 }
