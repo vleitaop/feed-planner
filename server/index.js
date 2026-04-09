@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const postsRouter = require('./routes/posts');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -11,11 +11,17 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Serve uploaded files statically at /uploads
+// Ensure uploads directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+// Serve uploaded files statically at /uploads
 app.use('/uploads', express.static(uploadsDir));
 
 // API Routes
+const postsRouter = require('./routes/posts');
 app.use('/api/posts', postsRouter);
 
 // Health check
@@ -25,15 +31,19 @@ app.get('/api/health', (req, res) => {
 
 // ── Serve React build in production ──
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
-app.use(express.static(clientDist));
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  // SPA fallback: any non-API, non-uploads route returns index.html
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
+  console.log('📦 Serving React build from', clientDist);
+} else {
+  console.log('⚠️  No client/dist found — API-only mode');
+}
 
-// SPA fallback: any non-API route returns index.html
-app.get('*', (req, res) => {
-  res.sendFile(path.join(clientDist, 'index.html'));
-});
-
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
   console.log(`💾 Database: SQLite (data.db)`);
   console.log(`📁 Uploads: ${uploadsDir}`);
 });
