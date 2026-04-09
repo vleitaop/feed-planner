@@ -9,15 +9,11 @@ export const getPosts = () => api.get('/posts').then((r) => r.data);
 
 /** Create a new post (multipart/form-data) */
 export const createPost = (formData) =>
-  api.post('/posts', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  }).then((r) => r.data);
+  api.post('/posts', formData).then((r) => r.data);
 
 /** Update an existing post (multipart/form-data) */
 export const updatePost = (id, formData) =>
-  api.put(`/posts/${id}`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  }).then((r) => r.data);
+  api.put(`/posts/${id}`, formData).then((r) => r.data);
 
 /** Bulk reorder: [{ id, position }, ...] */
 export const reorderPosts = (updates) =>
