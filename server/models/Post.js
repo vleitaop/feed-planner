@@ -7,11 +7,12 @@ const PostSchema = new mongoose.Schema(
       enum: ['image', 'carousel', 'reel'],
       required: true,
     },
-    mediaUrl: {
+    // CAMBIO: Ahora es un array de strings para soportar 1 o más URLs
+    mediaUrls: [{
       type: String,
       required: true,
       trim: true,
-    },
+    }],
     coverUrl: {
       type: String,
       default: null,
@@ -27,7 +28,7 @@ const PostSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Ensure each position is unique
+// Mantenemos el índice único por posición
 PostSchema.index({ position: 1 }, { unique: true });
 
 module.exports = mongoose.model('Post', PostSchema);
